@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Willow Field Ticket Scanner</title>
+
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 15px;
+      background: #f5f5f5;
+    }
+
+    h2 {
+      margin-bottom: 15px;
+    }
+
+    #reader {
+      width: 100%;
+      max-width: 500px;
+      margin: auto;
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    #result {
+      max-width: 500px;
+      margin: 20px auto;
+      padding: 20px;
+      background: white;
+      border-radius: 10px;
+      font-size: 18px;
+    }
+  </style>
+</head>
+
+<body>
+
+<h2>🎟️ Willow Field Check-In</h2>
+
+<div id="reader"></div>
+
+<div id="result">
+  📷 Starting camera...
+</div>
+
+<script>
+
+const scanner = new Html5Qrcode("reader");
+
+function startScanner() {
+
+  scanner.start(
+    { facingMode: "environment" },
+
+    {
+      fps: 10,
+      qrbox: function(width, height) {
+        const size = Math.min(width * 0.75, height * 0.75);
+        return { width: size, height: size };
+      }
+    },
+
+    function(decodedText) {
+
+      scanner.stop().then(function() {
+
+        document.getElementById("result").innerHTML =
+          "✅ QR CODE FOUND<br><br>" +
+          "Ticket: <b>" + decodedText + "</b><br><br>" +
+          "Checking ticket...";
+
+        checkTicket(decodedText);
+
+      });
+
+    },
+
+    function(errorMessage) {
+      // Normal scanning messages are ignored.
+    }
+
+  ).catch(function(error) {
+
+    document.getElementById("result").innerHTML =
+      "❌ CAMERA COULD NOT START<br><br>" +
+      error;
+
+  });
+}
+
+
+function checkTicket(ticketId) {
+
+  /*
+   * We will connect this to your Google Sheet
+   * in the next step.
+   */
+
+  document.getElementById("result").innerHTML =
+    "✅ QR CODE FOUND<br><br>" +
+    "Ticket: <b>" + ticketId + "</b><br><br>" +
+    "QR scanner is working!";
+}
+
+
+startScanner();
+
+</script>
+
+</body>
+</html>
