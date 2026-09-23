@@ -1,87 +1,63 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Willow Field Ticket Scanner</title>
-
-  <script src="https://unpkg.com/html5-qrcode"></script>
-
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 15px;
-      background: #f5f5f5;
-    }
-
-    h2 {
-      margin-bottom: 15px;
-    }
-
-    #reader {
-      width: 100%;
-      max-width: 500px;
-      margin: auto;
-      background: white;
-      border-radius: 10px;
-      overflow: hidden;
-    }
-
-    #result {
-      max-width: 500px;
-      margin: 20px auto;
-      padding: 20px;
-      background: white;
-      border-radius: 10px;
-      font-size: 18px;
-    }
-  </style>
-</head>
-
-<body>
-
-<h2>🎟️ Willow Field Check-In</h2>
-
-<div id="reader"></div>
-
-<div id="result">
-  📷 Starting camera...
-</div>
-
 <script>
 
 const scanner = new Html5Qrcode("reader");
 
+const APPS_SCRIPT =
+  "https://script.google.com/macros/s/AKfycby9OMnX23u3xDCH3FGEBAeiIRB2kDk5aMRltdVV8GUu2pTh6uuq_T891yAZoWuzg4Fs/exec";
+
+let processing = false;
+
+
+// ==============================
+// START SCANNER
+// ==============================
+
 function startScanner() {
+
+  processing = false;
+
+  document.getElementById("result").innerHTML =
+    "📷 Ready to scan a ticket";
 
   scanner.start(
     { facingMode: "environment" },
 
     {
       fps: 10,
+
       qrbox: function(width, height) {
-        const size = Math.min(width * 0.75, height * 0.75);
-        return { width: size, height: size };
+
+        const size = Math.min(
+          width * 0.75,
+          height * 0.75
+        );
+
+        return {
+          width: size,
+          height: size
+        };
       }
     },
 
     function(decodedText) {
 
-      scanner.stop().then(function() {
+      // Prevent the same QR code being processed multiple times
+      if (processing) return;
 
-        document.getElementById("result").innerHTML =
-          "✅ QR CODE FOUND<br><br>" +
-          "Ticket: <b>" + decodedText + "</b><br><br>" +
-          "Checking ticket...";
+      processing = true;
 
-        checkTicket(decodedText);
+      scanner.pause(true);
 
-      });
+      document.getElementById("result").innerHTML =
+        "🎟️ Ticket found<br><br>" +
+        "Checking ticket...";
+
+      checkTicket(decodedText);
 
     },
 
     function(errorMessage) {
-      // Normal scanning messages are ignored.
+      // Normal scanning errors ignored
     }
 
   ).catch(function(error) {
@@ -94,18 +70,132 @@ function startScanner() {
 }
 
 
-function checkTicket(ticketId) {
-  const APPS_SCRIPT =
-    "https://script.google.com/macros/s/AKfycby9OMnX23u3xDCH3FGEBAeiIRB2kDk5aMRltdVV8GUu2pTh6uuq_T891yAZoWuzg4Fs/exec";
+// ==============================
+// CHECK TICKET
+// ==============================
 
-  window.location.href =
-    APPS_SCRIPT + "?action=check&ticket=" + encodeURIComponent(ticketId);
+function checkTicket(ticketId) {
+
+  const url =
+    APPS_SCRIPT +
+    "?action=check&ticket=" +
+    encodeURIComponent(ticketId);
+
+  fetch(url)
+    .then(function(response) {
+
+      if (!response.ok) {
+        throw new Error(
+          "Server returned " + response.status
+        );
+      }
+
+      return response.text();
+
+    })
+
+    .then(function(result) {
+
+      console.log("Apps Script response:", result);
+
+      /*
+       * This assumes Apps Script returns text such as:
+       *
+       * VALID
+       * ALREADY USED
+       * INVALID
+       *
+       * Adjust these checks to match your Apps Script.
+       */
+
+      const answer = result.trim().toUpperCase();
+
+      if (answer.includes("ALREADY")) {
+
+        document.getElementById("result").innerHTML =
+          "⚠️ <b>TICKET ALREADY USED</b><br><br>" +
+          "This ticket has already been checked in.";
+
+      }
+
+      else if (
+        answer.includes("VALID") ||
+        answer.includes("SUCCESS") ||
+        answer.includes("CHECKED")
+      ) {
+
+        document.getElementById("result").innerHTML =
+          "✅ <b>TICKET ACCEPTED</b><br><br>" +
+          "The ticket has been checked in.";
+
+      }
+
+      else {
+
+        document.getElementById("result").innerHTML =
+          "❌ <b>TICKET NOT VALID</b><br><br>" +
+          result;
+
+      }
+
+      showScanAgain();
+
+    })
+
+    .catch(function(error) {
+
+      console.error(error);
+
+      document.getElementById("result").innerHTML =
+        "❌ <b>CHECK-IN ERROR</b><br><br>" +
+        error.message;
+
+      showScanAgain();
+
+    });
 }
 
+
+// ==============================
+// SCAN ANOTHER TICKET
+// ==============================
+
+function showScanAgain() {
+
+  const button = document.createElement("button");
+
+  button.textContent = "📷 SCAN ANOTHER TICKET";
+
+  button.style.fontSize = "18px";
+  button.style.padding = "15px 25px";
+  button.style.marginTop = "20px";
+  button.style.border = "none";
+  button.style.borderRadius = "8px";
+  button.style.background = "#222";
+  button.style.color = "white";
+  button.style.cursor = "pointer";
+
+  button.onclick = function() {
+
+    button.remove();
+
+    document.getElementById("result").innerHTML =
+      "📷 Ready to scan another ticket";
+
+    processing = false;
+
+    scanner.resume();
+
+  };
+
+  document.getElementById("result").appendChild(button);
+}
+
+
+// ==============================
+// START
+// ==============================
 
 startScanner();
 
 </script>
-
-</body>
-</html>
