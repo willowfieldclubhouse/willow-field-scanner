@@ -142,7 +142,79 @@ let processing = false;
 
 let autoRestartTimer = null;
 
+// =====================================================
+// SCAN SOUNDS
+// =====================================================
 
+let audioContext = null;
+
+function playBeep(success) {
+
+  try {
+
+    if (!audioContext) {
+      audioContext = new (
+        window.AudioContext ||
+        window.webkitAudioContext
+      )();
+    }
+
+    if (audioContext.state === "suspended") {
+      audioContext.resume();
+    }
+
+    const oscillator =
+      audioContext.createOscillator();
+
+    const gain =
+      audioContext.createGain();
+
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+
+    // Different sound for valid / invalid
+    if (success) {
+
+      // Higher, pleasant beep
+      oscillator.frequency.value = 880;
+
+    } else {
+
+      // Lower warning beep
+      oscillator.frequency.value = 330;
+
+    }
+
+    oscillator.type = "sine";
+
+    gain.gain.setValueAtTime(
+      0.001,
+      audioContext.currentTime
+    );
+
+    gain.gain.exponentialRampToValueAtTime(
+      0.25,
+      audioContext.currentTime + 0.02
+    );
+
+    gain.gain.exponentialRampToValueAtTime(
+      0.001,
+      audioContext.currentTime + 0.25
+    );
+
+    oscillator.start();
+
+    oscillator.stop(
+      audioContext.currentTime + 0.25
+    );
+
+  } catch (error) {
+
+    // Do not let sound problems affect ticket scanning.
+
+  }
+
+}
 // =====================================================
 // GET THIS GITHUB PAGE URL
 // =====================================================
@@ -538,7 +610,8 @@ function showValid(
     '</div>';
 
 
-  addScanButton();
+  playBeep(true);
+addScanButton();
 
   
 }
@@ -603,7 +676,8 @@ function showAlreadyUsed(
     '</div>';
 
 
-  addScanButton();
+  playBeep(false);
+addScanButton();
 
   
 }
@@ -642,7 +716,8 @@ function showNotFound(ticket) {
     '</div>';
 
 
-  addScanButton();
+  playBeep(false);
+addScanButton();
 
  
 }
@@ -708,7 +783,8 @@ function showError(message) {
     '</div>';
 
 
-  addScanButton();
+  playBeep(false);
+addScanButton();
 
   
 }
