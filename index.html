@@ -1,201 +1,955 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Willow Field Ticket Scanner</title>
+
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <style>
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 15px;
+      margin: 0;
+      background: #f5f5f5;
+    }
+
+    h2 {
+      margin: 10px 0 15px;
+    }
+
+    #reader {
+      width: 100%;
+      max-width: 500px;
+      margin: auto;
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    #result {
+      max-width: 500px;
+      margin: 20px auto;
+      padding: 20px;
+      background: white;
+      border-radius: 12px;
+      font-size: 18px;
+      min-height: 140px;
+    }
+
+    .valid {
+      background: #d4edda !important;
+      border: 3px solid #28a745;
+      color: #155724;
+    }
+
+    .invalid {
+      background: #f8d7da !important;
+      border: 3px solid #dc3545;
+      color: #721c24;
+    }
+
+    .checking {
+      background: #fff3cd !important;
+      border: 3px solid #ffc107;
+      color: #856404;
+    }
+
+    .big-icon {
+      font-size: 55px;
+      line-height: 1.1;
+      margin-bottom: 10px;
+    }
+
+    .status {
+      font-size: 28px;
+      font-weight: bold;
+      margin-bottom: 15px;
+    }
+
+    .details {
+      font-size: 17px;
+      line-height: 1.7;
+    }
+
+    .scan-button {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 15px 25px;
+      font-size: 18px;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      background: #222;
+      color: white;
+      cursor: pointer;
+    }
+
+    .scan-button:active {
+      transform: scale(0.97);
+    }
+
+    .countdown {
+      margin-top: 12px;
+      font-size: 14px;
+      color: #555;
+    }
+
+  </style>
+
+</head>
+
+
+<body>
+
+<h2>🎟️ Willow Field Check-In</h2>
+
+<div id="reader"></div>
+
+<div id="result">
+  📷 Starting camera...
+</div>
+
+
 <script>
 
-const scanner = new Html5Qrcode("reader");
+
+// =====================================================
+// SETTINGS
+// =====================================================
 
 const APPS_SCRIPT =
   "https://script.google.com/macros/s/AKfycby9OMnX23u3xDCH3FGEBAeiIRB2kDk5aMRltdVV8GUu2pTh6uuq_T891yAZoWuzg4Fs/exec";
 
+
+// =====================================================
+// SCANNER
+// =====================================================
+
+const scanner =
+  new Html5Qrcode("reader");
+
 let processing = false;
 
+let autoRestartTimer = null;
 
-// ==============================
-// START SCANNER
-// ==============================
+
+// =====================================================
+// GET THIS GITHUB PAGE URL
+// =====================================================
+
+function getReturnUrl() {
+
+  /*
+   * This automatically gets the current GitHub
+   * Pages address.
+   *
+   * Example:
+   *
+   * https://yourname.github.io/willow-field/
+   */
+
+  return window.location.origin +
+         window.location.pathname;
+
+}
+
+
+// =====================================================
+// START CAMERA
+// =====================================================
 
 function startScanner() {
 
   processing = false;
 
+  document.getElementById("result").className = "";
+
   document.getElementById("result").innerHTML =
-    "📷 Ready to scan a ticket";
+    "📷 <b>Ready to scan</b><br><br>" +
+    "Point the camera at the ticket QR code.";
+
 
   scanner.start(
-    { facingMode: "environment" },
+
+    {
+      facingMode: "environment"
+    },
 
     {
       fps: 10,
 
       qrbox: function(width, height) {
 
-        const size = Math.min(
-          width * 0.75,
-          height * 0.75
-        );
+        const size =
+          Math.min(
+            width * 0.75,
+            height * 0.75
+          );
 
         return {
           width: size,
           height: size
         };
+
       }
     },
+
+
+    // =================================================
+    // QR CODE FOUND
+    // =================================================
 
     function(decodedText) {
 
-      // Prevent the same QR code being processed multiple times
-      if (processing) return;
+      /*
+       * Prevent multiple detections of the same
+       * QR code while processing.
+       */
+
+      if (processing) {
+        return;
+      }
 
       processing = true;
 
-      scanner.pause(true);
 
-      document.getElementById("result").innerHTML =
-        "🎟️ Ticket found<br><br>" +
-        "Checking ticket...";
+      /*
+       * Stop the camera before leaving the page.
+       */
 
-      checkTicket(decodedText);
+      scanner.stop()
+        .then(function() {
+
+          document.getElementById("result")
+            .className = "checking";
+
+          document.getElementById("result").innerHTML =
+
+            '<div class="big-icon">⏳</div>' +
+
+            '<div class="status">' +
+            'CHECKING TICKET' +
+            '</div>' +
+
+            '<div class="details">' +
+            'Please wait...' +
+            '</div>';
+
+
+          checkTicket(decodedText);
+
+        })
+
+        .catch(function() {
+
+          /*
+           * Even if stopping the camera reports an
+           * error, continue with the check.
+           */
+
+          checkTicket(decodedText);
+
+        });
 
     },
 
+
+    // =================================================
+    // NORMAL CAMERA MESSAGES
+    // =================================================
+
     function(errorMessage) {
-      // Normal scanning errors ignored
+
+      // Ignore normal QR scanning messages.
+
     }
 
-  ).catch(function(error) {
+  )
+
+  .catch(function(error) {
+
+    document.getElementById("result")
+      .className = "invalid";
 
     document.getElementById("result").innerHTML =
-      "❌ CAMERA COULD NOT START<br><br>" +
-      error;
+
+      '<div class="big-icon">❌</div>' +
+
+      '<div class="status">' +
+      'CAMERA COULD NOT START' +
+      '</div>' +
+
+      '<div class="details">' +
+
+      escapeHtml(error) +
+
+      '<br><br>' +
+
+      'Please make sure camera permission ' +
+      'has been allowed for this website.' +
+
+      '</div>';
 
   });
+
 }
 
 
-// ==============================
-// CHECK TICKET
-// ==============================
+// =====================================================
+// SEND TICKET TO GOOGLE APPS SCRIPT
+// =====================================================
 
 function checkTicket(ticketId) {
 
+  /*
+   * Return to this exact GitHub page after Apps Script
+   * has finished checking the ticket.
+   */
+
+  const returnUrl =
+    getReturnUrl();
+
+
+  /*
+   * We use normal browser navigation rather than fetch().
+   *
+   * This is important because GitHub Pages and Google
+   * Apps Script are different domains and fetch/CORS
+   * can cause problems.
+   */
+
   const url =
     APPS_SCRIPT +
-    "?action=check&ticket=" +
-    encodeURIComponent(ticketId);
 
-  fetch(url)
-    .then(function(response) {
+    "?action=check" +
 
-      if (!response.ok) {
-        throw new Error(
-          "Server returned " + response.status
-        );
-      }
+    "&ticket=" +
+    encodeURIComponent(ticketId) +
 
-      return response.text();
+    "&return=" +
+    encodeURIComponent(returnUrl);
 
-    })
 
-    .then(function(result) {
+  /*
+   * Navigate to Apps Script.
+   *
+   * Apps Script checks the ticket and then sends the
+   * browser straight back here with the result.
+   */
 
-      console.log("Apps Script response:", result);
+  window.location.href = url;
 
-      /*
-       * This assumes Apps Script returns text such as:
-       *
-       * VALID
-       * ALREADY USED
-       * INVALID
-       *
-       * Adjust these checks to match your Apps Script.
-       */
-
-      const answer = result.trim().toUpperCase();
-
-      if (answer.includes("ALREADY")) {
-
-        document.getElementById("result").innerHTML =
-          "⚠️ <b>TICKET ALREADY USED</b><br><br>" +
-          "This ticket has already been checked in.";
-
-      }
-
-      else if (
-        answer.includes("VALID") ||
-        answer.includes("SUCCESS") ||
-        answer.includes("CHECKED")
-      ) {
-
-        document.getElementById("result").innerHTML =
-          "✅ <b>TICKET ACCEPTED</b><br><br>" +
-          "The ticket has been checked in.";
-
-      }
-
-      else {
-
-        document.getElementById("result").innerHTML =
-          "❌ <b>TICKET NOT VALID</b><br><br>" +
-          result;
-
-      }
-
-      showScanAgain();
-
-    })
-
-    .catch(function(error) {
-
-      console.error(error);
-
-      document.getElementById("result").innerHTML =
-        "❌ <b>CHECK-IN ERROR</b><br><br>" +
-        error.message;
-
-      showScanAgain();
-
-    });
 }
 
 
-// ==============================
-// SCAN ANOTHER TICKET
-// ==============================
+// =====================================================
+// READ RESULT AFTER RETURNING FROM APPS SCRIPT
+// =====================================================
 
-function showScanAgain() {
+function checkForResult() {
 
-  const button = document.createElement("button");
+  const params =
+    new URLSearchParams(
+      window.location.search
+    );
 
-  button.textContent = "📷 SCAN ANOTHER TICKET";
 
-  button.style.fontSize = "18px";
-  button.style.padding = "15px 25px";
-  button.style.marginTop = "20px";
-  button.style.border = "none";
-  button.style.borderRadius = "8px";
-  button.style.background = "#222";
-  button.style.color = "white";
-  button.style.cursor = "pointer";
+  const result =
+    params.get("result");
+
+
+  if (!result) {
+
+    startScanner();
+
+    return;
+
+  }
+
+
+  const ticket =
+    params.get("ticket") || "";
+
+  const booking =
+    params.get("booking") || "";
+
+  const name =
+    params.get("name") || "";
+
+  const ticketType =
+    params.get("type") || "";
+
+  const time =
+    params.get("time") || "";
+
+
+  /*
+   * Remove the result parameters from the address bar.
+   */
+
+  window.history.replaceState(
+    {},
+    document.title,
+    getReturnUrl()
+  );
+
+
+  // ===================================================
+  // VALID
+  // ===================================================
+
+  if (result === "valid") {
+
+    showValid(
+      ticket,
+      booking,
+      name,
+      ticketType,
+      time
+    );
+
+    return;
+
+  }
+
+
+  // ===================================================
+  // ALREADY USED
+  // ===================================================
+
+  if (result === "used") {
+
+    showAlreadyUsed(
+      ticket,
+      booking,
+      name,
+      ticketType,
+      time
+    );
+
+    return;
+
+  }
+
+
+  // ===================================================
+  // NOT FOUND
+  // ===================================================
+
+  if (result === "notfound") {
+
+    showNotFound(ticket);
+
+    return;
+
+  }
+
+
+  // ===================================================
+  // BUSY
+  // ===================================================
+
+  if (result === "busy") {
+
+    showBusy();
+
+    return;
+
+  }
+
+
+  // ===================================================
+  // ERROR
+  // ===================================================
+
+  showError(
+    params.get("message") ||
+    "An unknown error occurred."
+  );
+
+}
+
+
+// =====================================================
+// VALID RESULT
+// =====================================================
+
+function showValid(
+  ticket,
+  booking,
+  name,
+  ticketType,
+  time
+) {
+
+  const box =
+    document.getElementById("result");
+
+  box.className =
+    "valid";
+
+  box.innerHTML =
+
+    '<div class="big-icon">✅</div>' +
+
+    '<div class="status">' +
+    'TICKET VALID' +
+    '</div>' +
+
+    '<div class="details">' +
+
+    '<b>CHECKED IN</b>' +
+
+    '<br><br>' +
+
+    '<b>Booking:</b> ' +
+    escapeHtml(booking) +
+
+    '<br>' +
+
+    '<b>Name:</b> ' +
+    escapeHtml(name) +
+
+    '<br>' +
+
+    '<b>Ticket:</b> ' +
+    escapeHtml(ticketType) +
+
+    '<br>' +
+
+    '<b>Ticket ID:</b> ' +
+    escapeHtml(ticket) +
+
+    '<br><br>' +
+
+    '🕐 ' +
+    escapeHtml(time) +
+
+    '</div>';
+
+
+  addScanButton();
+
+  autoRestart(4);
+
+}
+
+
+// =====================================================
+// ALREADY USED
+// =====================================================
+
+function showAlreadyUsed(
+  ticket,
+  booking,
+  name,
+  ticketType,
+  time
+) {
+
+  const box =
+    document.getElementById("result");
+
+  box.className =
+    "invalid";
+
+  box.innerHTML =
+
+    '<div class="big-icon">⚠️</div>' +
+
+    '<div class="status">' +
+    'ALREADY USED' +
+    '</div>' +
+
+    '<div class="details">' +
+
+    '<b>This ticket has already been checked in.</b>' +
+
+    '<br><br>' +
+
+    '<b>Booking:</b> ' +
+    escapeHtml(booking) +
+
+    '<br>' +
+
+    '<b>Name:</b> ' +
+    escapeHtml(name) +
+
+    '<br>' +
+
+    '<b>Ticket:</b> ' +
+    escapeHtml(ticketType) +
+
+    '<br>' +
+
+    '<b>Ticket ID:</b> ' +
+    escapeHtml(ticket) +
+
+    '<br><br>' +
+
+    '<b>Original check-in:</b><br>' +
+
+    escapeHtml(time) +
+
+    '</div>';
+
+
+  addScanButton();
+
+  autoRestart(4);
+
+}
+
+
+// =====================================================
+// NOT FOUND
+// =====================================================
+
+function showNotFound(ticket) {
+
+  const box =
+    document.getElementById("result");
+
+  box.className =
+    "invalid";
+
+  box.innerHTML =
+
+    '<div class="big-icon">❌</div>' +
+
+    '<div class="status">' +
+    'TICKET NOT FOUND' +
+    '</div>' +
+
+    '<div class="details">' +
+
+    'This QR code is not recognised.' +
+
+    '<br><br>' +
+
+    '<b>Ticket ID:</b><br>' +
+
+    escapeHtml(ticket) +
+
+    '</div>';
+
+
+  addScanButton();
+
+  autoRestart(4);
+
+}
+
+
+// =====================================================
+// BUSY
+// =====================================================
+
+function showBusy() {
+
+  const box =
+    document.getElementById("result");
+
+  box.className =
+    "checking";
+
+  box.innerHTML =
+
+    '<div class="big-icon">⏳</div>' +
+
+    '<div class="status">' +
+    'PLEASE TRY AGAIN' +
+    '</div>' +
+
+    '<div class="details">' +
+
+    'Another check-in is currently being processed.' +
+
+    '</div>';
+
+
+  addScanButton();
+
+  autoRestart(2);
+
+}
+
+
+// =====================================================
+// ERROR
+// =====================================================
+
+function showError(message) {
+
+  const box =
+    document.getElementById("result");
+
+  box.className =
+    "invalid";
+
+  box.innerHTML =
+
+    '<div class="big-icon">❌</div>' +
+
+    '<div class="status">' +
+    'CHECK-IN ERROR' +
+    '</div>' +
+
+    '<div class="details">' +
+
+    escapeHtml(message) +
+
+    '</div>';
+
+
+  addScanButton();
+
+  autoRestart(4);
+
+}
+
+
+// =====================================================
+// SCAN AGAIN BUTTON
+// =====================================================
+
+function addScanButton() {
+
+  const oldButton =
+    document.getElementById("scanAgain");
+
+  if (oldButton) {
+    oldButton.remove();
+  }
+
+
+  const button =
+    document.createElement("button");
+
+  button.id =
+    "scanAgain";
+
+  button.className =
+    "scan-button";
+
+  button.innerHTML =
+    "📷 SCAN ANOTHER TICKET";
+
 
   button.onclick = function() {
 
-    button.remove();
+    cancelAutoRestart();
 
-    document.getElementById("result").innerHTML =
-      "📷 Ready to scan another ticket";
-
-    processing = false;
-
-    scanner.resume();
+    restartScanner();
 
   };
 
-  document.getElementById("result").appendChild(button);
+
+  document
+    .getElementById("result")
+    .appendChild(button);
+
 }
 
 
-// ==============================
-// START
-// ==============================
+// =====================================================
+// AUTOMATIC NEXT SCAN
+// =====================================================
 
-startScanner();
+function autoRestart(seconds) {
+
+  cancelAutoRestart();
+
+
+  let remaining =
+    seconds;
+
+
+  const countdown =
+    document.createElement("div");
+
+  countdown.className =
+    "countdown";
+
+  countdown.id =
+    "countdown";
+
+  countdown.innerHTML =
+    "Next scan in " +
+    remaining +
+    "...";
+
+
+  document
+    .getElementById("result")
+    .appendChild(countdown);
+
+
+  autoRestartTimer =
+    setInterval(function() {
+
+      remaining--;
+
+
+      const element =
+        document.getElementById("countdown");
+
+
+      if (element) {
+
+        if (remaining > 0) {
+
+          element.innerHTML =
+            "Next scan in " +
+            remaining +
+            "...";
+
+        }
+
+        else {
+
+          element.innerHTML =
+            "Starting camera...";
+
+        }
+
+      }
+
+
+      if (remaining <= 0) {
+
+        cancelAutoRestart();
+
+        restartScanner();
+
+      }
+
+    }, 1000);
+
+}
+
+
+// =====================================================
+// CANCEL TIMER
+// =====================================================
+
+function cancelAutoRestart() {
+
+  if (autoRestartTimer) {
+
+    clearInterval(autoRestartTimer);
+
+    autoRestartTimer = null;
+
+  }
+
+}
+
+
+// =====================================================
+// RESTART SCANNER
+// =====================================================
+
+function restartScanner() {
+
+  cancelAutoRestart();
+
+  processing = false;
+
+
+  const button =
+    document.getElementById("scanAgain");
+
+  if (button) {
+    button.remove();
+  }
+
+
+  document.getElementById("result")
+    .className = "";
+
+  document.getElementById("result").innerHTML =
+    "📷 Starting camera...";
+
+
+  /*
+   * Create a new Html5Qrcode instance.
+   *
+   * This is deliberately done rather than trying to
+   * resume a scanner that was stopped before leaving
+   * the page.
+   */
+
+  try {
+
+    scanner.clear()
+      .then(function() {
+
+        startScanner();
+
+      })
+      .catch(function() {
+
+        startScanner();
+
+      });
+
+  }
+
+  catch (error) {
+
+    startScanner();
+
+  }
+
+}
+
+
+// =====================================================
+// ESCAPE HTML
+// =====================================================
+
+function escapeHtml(value) {
+
+  if (
+    value === null ||
+    value === undefined
+  ) {
+
+    return "";
+
+  }
+
+
+  return String(value)
+
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+}
+
+
+// =====================================================
+// START
+// =====================================================
+
+checkForResult();
+
 
 </script>
+
+</body>
+</html>
