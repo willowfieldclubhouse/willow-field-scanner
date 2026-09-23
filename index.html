@@ -95,16 +95,11 @@ function startScanner() {
 
 
 function checkTicket(ticketId) {
+  const APPS_SCRIPT =
+    "https://script.google.com/macros/s/AKfycby9OMnX23u3xDCH3FGEBAeiIRB2kDk5aMRltdVV8GUu2pTh6uuq_T891yAZoWuzg4Fs/exec";
 
-  /*
-   * We will connect this to your Google Sheet
-   * in the next step.
-   */
-
-  document.getElementById("result").innerHTML =
-    "✅ QR CODE FOUND<br><br>" +
-    "Ticket: <b>" + ticketId + "</b><br><br>" +
-    "QR scanner is working!";
+  window.location.href =
+    APPS_SCRIPT + "?action=check&ticket=" + encodeURIComponent(ticketId);
 }
 
 
